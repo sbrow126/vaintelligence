@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VA-11 Intelligence Platform - Rep. James Walkinshaw</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .header h1 {
+            color: #1e3a8a;
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .nav-tabs {
+            background: white;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .nav-tab {
+            padding: 12px 24px;
+            border: none;
+            background: #f1f5f9;
+            color: #64748b;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .nav-tab.active {
+            background: #1e3a8a;
+            color: white;
+        }
+
+        .nav-tab:hover {
+            background: #cbd5e1;
+        }
+
+        .nav-tab.active:hover {
+            background: #1e40af;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-left: 4px solid;
+        }
+
+        .stat-card.total {
+            border-left-color: #1e3a8a;
+        }
+
+        .stat-card.positive {
+            border-left-color: #10b981;
+        }
+
+        .stat-card.negative {
+            border-left-color: #ef4444;
+        }
+
+        .stat-card.neutral {
+            border-left-color: #f59e0b;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            font-size: 36px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            margin-bottom: 24px;
+        }
+
+        .chart-card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 20px;
+        }
+
+        .chart-container {
+            height: 300px;
+            position: relative;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f4f6;
+            border-top-color: #1e3a8a;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .update-time {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 13px;
+            margin-top: 20px;
+        }
+
+        .settings-icon {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 56px;
+            height: 56px;
+            background: #1e3a8a;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.4);
+            transition: transform 0.3s;
+        }
+
+        .settings-icon:hover {
+            transform: scale(1.1);
+        }
+
+        .settings-icon svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        canvas {
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>VA-11 Intelligence Platform</h1>
+            <p>Constituent Social Media Analysis | Rep. James Walkinshaw</p>
+            <div class="update-time">
+                Last updated: <span id="update-time">Loading...</span>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="nav-tab active" onclick="switchTab('overview')">Overview</button>
+            <button class="nav-tab" onclick="switchTab('policy')">Policy Issues</button>
+            <button class="nav-tab" onclick="switchTab('geographic')">Geographic</button>
+            <button class="nav-tab" onclick="switchTab('live')">Live Posts</button>
+            <button class="nav-tab" onclick="switchTab('analytics')">Analytics</button>
+        </div>
+
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+            <div class="stat-card total">
+                <div class="stat-label">Total Posts</div>
+                <div class="stat-value" id="total-posts">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+            <div class="stat-card positive">
+                <div class="stat-label">Positive Sentiment</div>
+                <div class="stat-value" id="positive-posts">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+            <div class="stat-card negative">
+                <div class="stat-label">Negative Sentiment</div>
+                <div class="stat-value" id="negative-posts">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+            <div class="stat-card neutral">
+                <div class="stat-label">Neutral Sentiment</div>
+                <div class="stat-value" id="neutral-posts">
+                    <div class="loading-spinner"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Grid -->
+        <div class="content-grid">
+            <div class="chart-card">
+                <div class="chart-title">Sentiment Over Time (30 Days)</div>
+                <div class="chart-container">
+                    <canvas id="sentiment-timeline"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-title">Platform Breakdown</div>
+                <div class="chart-container">
+                    <canvas id="platform-chart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Icon -->
+        <div class="settings-icon" onclick="alert('Settings coming soon!')">
+            <svg viewBox="0 0 24 24">
+                <path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.07-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.74,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.07,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.47-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <script>
+        // Global variables
+        let sentimentChart, platformChart;
+
+        // Load dashboard data
+        async function loadDashboard() {
+            try {
+                // Fetch stats from existing API
+                const statsResponse = await fetch('/api/stats');
+                const stats = await statsResponse.json();
+
+                // Update stat cards
+                document.getElementById('total-posts').textContent = stats.total_posts || 0;
+                document.getElementById('positive-posts').textContent = stats.positive_posts || 0;
+                document.getElementById('negative-posts').textContent = stats.negative_posts || 0;
+                document.getElementById('neutral-posts').textContent = stats.neutral_posts || 0;
+
+                // Fetch time series data
+                const timeseriesResponse = await fetch('/api/timeseries?days=30');
+                const timeseries = await timeseriesResponse.json();
+
+                // Update sentiment timeline chart
+                updateSentimentChart(timeseries);
+
+                // Fetch platform breakdown
+                const platformResponse = await fetch('/api/platforms');
+                const platforms = await platformResponse.json();
+
+                // Update platform chart
+                updatePlatformChart(platforms);
+
+                // Update timestamp
+                document.getElementById('update-time').textContent = new Date().toLocaleString();
+
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+                document.getElementById('total-posts').textContent = 'Error';
+                document.getElementById('positive-posts').textContent = 'Error';
+                document.getElementById('negative-posts').textContent = 'Error';
+                document.getElementById('neutral-posts').textContent = 'Error';
+            }
+        }
+
+        // Update sentiment timeline chart
+        function updateSentimentChart(data) {
+            const ctx = document.getElementById('sentiment-timeline');
+            
+            if (sentimentChart) {
+                sentimentChart.destroy();
+            }
+
+            const labels = data.map(d => new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+            
+            sentimentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Positive',
+                            data: data.map(d => d.positive),
+                            borderColor: '#10b981',
+                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Negative',
+                            data: data.map(d => d.negative),
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Neutral',
+                            data: data.map(d => d.neutral),
+                            borderColor: '#f59e0b',
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update platform breakdown chart
+        function updatePlatformChart(data) {
+            const ctx = document.getElementById('platform-chart');
+            
+            if (platformChart) {
+                platformChart.destroy();
+            }
+
+            platformChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: data.map(d => d.platform),
+                    datasets: [{
+                        data: data.map(d => d.count),
+                        backgroundColor: [
+                            '#3b82f6',
+                            '#8b5cf6',
+                            '#ef4444',
+                            '#10b981',
+                            '#f59e0b'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'right',
+                        }
+                    }
+                }
+            });
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            // Update active tab
+            document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // For now, just log the tab change
+            // In production, this would load different content
+            console.log('Switched to tab:', tab);
+        }
+
+        // Initialize dashboard
+        loadDashboard();
+
+        // Refresh every 5 minutes
+        setInterval(loadDashboard, 300000);
+    </script>
+</body>
+</html>
