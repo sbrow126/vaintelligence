@@ -1,135 +1,103 @@
-# ⚡ QUICK START - Get Your Dashboard Live in 10 Minutes
+# Quick Start Guide
 
-## What You're About To Do
+Get VA-11 Intelligence Platform running in 15 minutes.
 
-1. Download the files (you already have them!)
-2. Push to GitHub
-3. Redeploy to Google Cloud Run
-4. See your new dashboard live!
+## Prerequisites
 
-## Step 1: Push to GitHub (3 minutes)
+- Google Cloud account
+- GitHub account (sbrow126)
+- Cloud Shell access
 
-### If you have the vaintelligence repo already on GitHub:
-
-```bash
-# In Google Cloud Shell, go to your existing repo
-cd ~/vaintelligence/dashboard
-
-# Replace the old dashboard files with new ones
-# (Copy the files from this package into ~/vaintelligence/dashboard)
-
-# Commit and push
-git add .
-git commit -m "Updated to modern dashboard UI"
-git push
-```
-
-### If starting fresh:
+## Step 1: Upload to GitHub (5 minutes)
 
 ```bash
-# In Google Cloud Shell
 cd ~
-mkdir va11-intelligence-platform
+tar -xzf va11-intelligence-platform.tar.gz
 cd va11-intelligence-platform
 
-# Upload all files from this package
-
-# Initialize git
 git init
 git add .
-git commit -m "Initial commit: VA-11 Intelligence Platform"
-
-# Create repo on GitHub: https://github.com/new
-# Then:
-git remote add origin https://github.com/YOUR_USERNAME/va11-intelligence-platform.git
+git commit -m "VA-11 Intelligence Platform - Complete deployment"
+git remote add origin https://github.com/sbrow126/va11-intelligence-platform.git
 git branch -M main
 git push -u origin main
 ```
 
-## Step 2: Deploy to Cloud Run (5 minutes)
+## Step 2: Deploy to Google Cloud (10 minutes)
 
 ```bash
-# Make sure you're logged in
-gcloud auth login
-gcloud config set project va11-intelligence
-
-# Navigate to your project
-cd ~/va11-intelligence-platform  # or ~/vaintelligence/dashboard
-
-# Deploy!
-gcloud run deploy va11-dashboard \
-    --source . \
-    --platform managed \
-    --region us-east4 \
-    --allow-unauthenticated \
-    --set-env-vars=DB_NAME=va11_intelligence,DB_USER=postgres,CLOUD_SQL_CONNECTION_NAME=va11-intelligence:us-east4:va11-db,GCP_PROJECT=va11-intelligence \
-    --set-secrets=DB_PASSWORD=db-password:latest \
-    --add-cloudsql-instances=va11-intelligence:us-east4:va11-db \
-    --project=va11-intelligence
+cd deployment
+chmod +x deploy_all.sh
+./deploy_all.sh
 ```
 
-## Step 3: Open Your Dashboard (1 minute)
+This deploys:
+- Bluesky collector
+- Reddit collector  
+- Sentiment analyzer
+- Cloud Scheduler jobs
+- Dashboard
 
+## Step 3: Verify (2 minutes)
+
+Open dashboard:
 ```
 https://va11-dashboard-466254020344.us-east4.run.app
 ```
 
-**Done!** 🎉
-
-## What You Should See
-
-Your dashboard will show:
-- ✅ Total posts collected
-- ✅ Sentiment breakdown (positive/negative/neutral)
-- ✅ 30-day sentiment timeline chart
-- ✅ Platform distribution pie chart
-- ✅ Last updated timestamp
-- ✅ Navigation tabs for future features
-
-## If Something Goes Wrong
-
-### Dashboard shows "Error" or no data:
-
+Check database:
 ```bash
-# Check if collectors are running
-gcloud scheduler jobs list --location us-east4
-
-# Manually trigger a collector
-gcloud functions call collect-bluesky --region us-east4
-
-# Wait 2 minutes, then refresh dashboard
+gcloud sql connect va11-db --user=postgres --database=va11_intelligence --quiet
 ```
 
-### Database connection issues:
+Password: `SecureVA11Pass2024!`
 
-```bash
-# Verify connection name
-gcloud sql instances describe va11-db --format="value(connectionName)"
-
-# Should show: va11-intelligence:us-east4:va11-db
-
-# Check secret
-gcloud secrets versions access latest --secret=db-password
+```sql
+SELECT platform, COUNT(*) as count, MAX(timestamp) as newest 
+FROM social_media_posts 
+GROUP BY platform 
+ORDER BY count DESC;
 ```
 
-### Still having issues?
+## Expected Results
 
-Check the detailed troubleshooting in `DEPLOYMENT.md`
+After first deployment:
+- Bluesky: 50-100 posts
+- Reddit: 100-200 posts
+- Total: 150-300 posts
 
----
+After 24 hours:
+- Bluesky: 200+ posts
+- Reddit: 500+ posts  
+- Total: 700+ posts
 
-## What's Next?
+## Troubleshooting
 
-Now that your dashboard is live, you can:
+### No data showing
+```bash
+curl https://us-east4-va11-intelligence.cloudfunctions.net/bluesky-collector
+curl https://us-east4-va11-intelligence.cloudfunctions.net/reddit-collector
+```
 
-1. **Share with Rep. Walkinshaw** - Send him the URL
-2. **Set up alerts** - Get notified of sentiment spikes
-3. **Add authentication** - Protect with password (optional)
-4. **Customize design** - Edit `templates/dashboard.html`
-5. **Add features** - Implement Policy Issues, Geographic tabs
+### Collectors failing
+```bash
+gcloud functions logs read bluesky-collector --region=us-east4 --limit=20
+gcloud functions logs read reddit-collector --region=us-east4 --limit=20
+```
 
----
+### Dashboard errors
+```bash
+gcloud run services logs read va11-dashboard --region=us-east4 --limit=50
+```
 
-**You're done!** Your constituent intelligence platform is now live and collecting data every 6 hours.
+## Next Steps
 
-Time to show Rep. Walkinshaw what his constituents are saying! 🚀
+1. Share dashboard URL with Rep. Walkinshaw
+2. Monitor data collection for 24 hours
+3. Add YouTube collector (needs API key)
+4. Implement 7-day backfill
+5. Add policy issue categorization
+
+## Support
+
+GitHub: https://github.com/sbrow126/va11-intelligence-platform

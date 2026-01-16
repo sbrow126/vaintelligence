@@ -1,264 +1,129 @@
 # Complete Deployment Guide
 
+## System Overview
+
+VA-11 Intelligence Platform monitors social media for constituent sentiment in Virginia's 11th district.
+
+### Architecture
+
+```
+Google Cloud Platform
+├── Cloud Functions
+│   ├── bluesky-collector (every 6 hours)
+│   ├── reddit-collector (every 6 hours)
+│   └── sentiment-analyzer (every hour)
+├── Cloud SQL (PostgreSQL 15)
+│   └── va11_intelligence database
+├── Cloud Run
+│   └── Flask dashboard
+└── Cloud Scheduler
+    └── Automated triggers
+```
+
 ## Prerequisites
 
-✅ You already have:
-- Google Cloud project: `va11-intelligence`
-- Cloud SQL database: `va11-db`
-- Database: `va11_intelligence`
-- Cloud Functions deployed (Bluesky, Mastodon, YouTube, Reddit collectors)
-- Cloud Scheduler jobs running
-- GitHub account
+### Required
+- Google Cloud project: va11-intelligence
+- Billing enabled
+- APIs enabled:
+  - Cloud Functions API
+  - Cloud Run API
+  - Cloud SQL Admin API
+  - Cloud Scheduler API
+  - Secret Manager API
 
-## Step-by-Step Deployment
+### Existing Resources
+- Cloud SQL instance: va11-db
+- Database: va11_intelligence
+- Connection: va11-intelligence:us-east4:va11-db
 
-### 1. Upload to GitHub (5 minutes)
+## Deployment Steps
 
-#### Option A: Using Git Command Line
+### 1. Prepare Secrets
+
+Ensure these secrets exist in Secret Manager:
 
 ```bash
-# Navigate to the project directory
-cd /path/to/va11-intelligence-platform
-
-# Initialize git repository
-git init
-
-# Add all files
-git add .
-
-# Commit
-git commit -m "Initial commit: VA-11 Intelligence Platform"
-
-# Create repository on GitHub (https://github.com/new)
-# Name it: va11-intelligence-platform
-# Make it PRIVATE
-
-# Add GitHub as remote
-git remote add origin https://github.com/YOUR_USERNAME/va11-intelligence-platform.git
-
-# Push to GitHub
-git branch -M main
-git push -u origin main
+gcloud secrets versions access latest --secret=db-password
+gcloud secrets versions access latest --secret=anthropic-api-key
 ```
 
-#### Option B: Using GitHub Web Interface
-
-1. Go to https://github.com/new
-2. Repository name: `va11-intelligence-platform`
-3. Select **Private**
-4. Click "Create repository"
-5. Click "uploading an existing file"
-6. Drag and drop all files from this folder
-7. Click "Commit changes"
-
-### 2. Deploy to Google Cloud Run (10 minutes)
-
-#### Method 1: Direct Deploy from Cloud Shell
+If missing, create them:
 
 ```bash
-# Log in to Google Cloud
-gcloud auth login
+echo -n "SecureVA11Pass2024!" | gcloud secrets create db-password --data-file=-
+echo -n "YOUR_ANTHROPIC_API_KEY" | gcloud secrets create anthropic-api-key --data-file=-
+```
 
-# Set your project
-gcloud config set project va11-intelligence
+### 2. Deploy Collectors
 
-# Navigate to your project directory
-# If on Cloud Shell, clone from GitHub:
-git clone https://github.com/YOUR_USERNAME/va11-intelligence-platform.git
-cd va11-intelligence-platform
+```bash
+cd deployment
+chmod +x deploy_all.sh
+./deploy_all.sh
+```
 
-# Deploy!
+Or deploy individually:
+
+```bash
+cd collectors/bluesky
+gcloud functions deploy bluesky-collector \
+    --gen2 \
+    --runtime=python311 \
+    --region=us-east4 \
+    --source=. \
+    --entry-point=bluesky_collector_function \
+    --trigger-http \
+    --allow-unauthenticated \
+    --set-env-vars=DB_NAME=va11_intelligence,DB_USER=postgres,CLOUD_SQL_CONNECTION_NAME=va11-intelligence:us-east4:va11-db \
+    --set-secrets=DB_PASSWORD=db-password:latest \
+    --timeout=540s \
+    --memory=512MB
+```
+
+### 3. Setup Automation
+
+Cloud Scheduler jobs run collectors automatically:
+
+```bash
+gcloud scheduler jobs create http bluesky-collector-schedule \
+    --location=us-east4 \
+    --schedule="0 */6 * * *" \
+    --uri="https://us-east4-va11-intelligence.cloudfunctions.net/bluesky-collector" \
+    --http-method=GET
+```
+
+### 4. Deploy Dashboard
+
+```bash
+cd dashboard
+
 gcloud run deploy va11-dashboard \
     --source . \
     --platform managed \
-    --region us-east4 \
+    --region=us-east4 \
     --allow-unauthenticated \
-    --set-env-vars=DB_NAME=va11_intelligence,DB_USER=postgres,CLOUD_SQL_CONNECTION_NAME=va11-intelligence:us-east4:va11-db,GCP_PROJECT=va11-intelligence \
+    --set-env-vars=DB_NAME=va11_intelligence,DB_USER=postgres,CLOUD_SQL_CONNECTION_NAME=va11-intelligence:us-east4:va11-db \
     --set-secrets=DB_PASSWORD=db-password:latest \
-    --add-cloudsql-instances=va11-intelligence:us-east4:va11-db \
-    --project=va11-intelligence
+    --add-cloudsql-instances=va11-intelligence:us-east4:va11-db
 ```
 
-#### Method 2: Deploy from GitHub
+### 5. Verify Deployment
 
-1. Go to Google Cloud Console: https://console.cloud.google.com
-2. Navigate to **Cloud Run**
-3. Click **Create Service**
-4. Select **Continuously deploy from a repository (source-based)**
-5. Click **Set up with Cloud Build**
-6. Select **GitHub** as repository provider
-7. Authenticate with GitHub
-8. Select your repository: `va11-intelligence-platform`
-9. Branch: `main`
-10. Build type: **Dockerfile or Buildpack**
-11. Click **Save**
-
-Configure the service:
-- Service name: `va11-dashboard`
-- Region: `us-east4`
-- Authentication: **Allow unauthenticated invocations**
-- Container port: `8080`
-
-Add environment variables:
-- `DB_NAME` = `va11_intelligence`
-- `DB_USER` = `postgres`
-- `CLOUD_SQL_CONNECTION_NAME` = `va11-intelligence:us-east4:va11-db`
-- `GCP_PROJECT` = `va11-intelligence`
-
-Add secrets:
-- `DB_PASSWORD` → Mount as environment variable from Secret Manager
-
-Add Cloud SQL connection:
-- Instance: `va11-intelligence:us-east4:va11-db`
-
-Click **Create**.
-
-### 3. Verify Deployment (2 minutes)
-
-Once deployment completes, you'll get a URL like:
-```
-https://va11-dashboard-466254020344.us-east4.run.app
-```
-
-Test the endpoints:
+Test collectors:
 
 ```bash
-# Health check
-curl https://va11-dashboard-466254020344.us-east4.run.app/health
-
-# Stats
-curl https://va11-dashboard-466254020344.us-east4.run.app/api/stats
-
-# Time series
-curl https://va11-dashboard-466254020344.us-east4.run.app/api/timeseries?days=7
+curl https://us-east4-va11-intelligence.cloudfunctions.net/bluesky-collector
+curl https://us-east4-va11-intelligence.cloudfunctions.net/reddit-collector
+curl https://us-east4-va11-intelligence.cloudfunctions.net/sentiment-analyzer
 ```
 
-Open the dashboard in your browser:
-```
-https://va11-dashboard-466254020344.us-east4.run.app
-```
+Check database:
 
-### 4. Configure Custom Domain (Optional)
-
-If you want a custom domain like `intelligence.jameswalkinshaw.com`:
-
-1. In Cloud Run, click your service
-2. Go to **"Manage Custom Domains"**
-3. Click **"Add Mapping"**
-4. Select your domain
-5. Follow DNS configuration instructions
-
-## Troubleshooting
-
-### "Service Unavailable" Error
-
-Check logs:
 ```bash
-gcloud run services logs read va11-dashboard \
-    --region us-east4 \
-    --project va11-intelligence \
-    --limit 50
-```
-
-Common issues:
-- Database connection string incorrect
-- Secret Manager permissions not set
-- Cloud SQL instance name wrong
-
-### No Data Showing
-
-1. Check if collectors are running:
-```bash
-gcloud scheduler jobs list --location us-east4 --project va11-intelligence
-```
-
-2. Verify database has data:
-```bash
-# Connect to Cloud SQL
 gcloud sql connect va11-db --user=postgres --database=va11_intelligence
 
-# Check post count
-SELECT COUNT(*) FROM social_media_posts;
-
-# Check sentiment analysis
-SELECT COUNT(*) FROM sentiment_analysis;
-```
-
-3. Manually trigger a collector:
-```bash
-gcloud functions call collect-bluesky \
-    --region us-east4 \
-    --project va11-intelligence
-```
-
-### Database Connection Issues
-
-Verify Cloud SQL connection name:
-```bash
-gcloud sql instances describe va11-db \
-    --project va11-intelligence \
-    --format="value(connectionName)"
-```
-
-Should return: `va11-intelligence:us-east4:va11-db`
-
-Verify secret is accessible:
-```bash
-gcloud secrets versions access latest \
-    --secret=db-password \
-    --project=va11-intelligence
-```
-
-### Charts Not Loading
-
-Check browser console for JavaScript errors:
-1. Open dashboard
-2. Right-click → Inspect
-3. Go to Console tab
-4. Look for API errors
-
-Verify Chart.js is loading:
-- Check browser Network tab
-- Look for `chart.umd.min.js` request
-- Should return 200 OK
-
-## Updating the Dashboard
-
-### Update via GitHub
-
-1. Make changes to files
-2. Commit and push:
-```bash
-git add .
-git commit -m "Updated dashboard design"
-git push
-```
-
-3. Redeploy:
-```bash
-gcloud run deploy va11-dashboard \
-    --source . \
-    --platform managed \
-    --region us-east4 \
-    --project=va11-intelligence
-```
-
-### Update via Cloud Shell
-
-1. Open Google Cloud Shell
-2. Navigate to project:
-```bash
-cd ~/vaintelligence/dashboard
-```
-
-3. Make changes to files
-4. Redeploy:
-```bash
-gcloud run deploy va11-dashboard \
-    --source . \
-    --platform managed \
-    --region us-east4 \
-    --project=va11-intelligence
+SELECT platform, COUNT(*) FROM social_media_posts GROUP BY platform;
 ```
 
 ## Monitoring
@@ -266,105 +131,193 @@ gcloud run deploy va11-dashboard \
 ### View Logs
 
 ```bash
-# Real-time logs
-gcloud run services logs tail va11-dashboard \
-    --region us-east4 \
-    --project va11-intelligence
-
-# Recent logs
-gcloud run services logs read va11-dashboard \
-    --region us-east4 \
-    --project va11-intelligence \
-    --limit 100
+gcloud functions logs read bluesky-collector --region=us-east4 --limit=50
+gcloud run services logs read va11-dashboard --region=us-east4 --limit=50
 ```
 
-### Check Metrics
+### Check Scheduler Status
 
-1. Go to Cloud Run console
-2. Click on `va11-dashboard`
-3. View **Metrics** tab for:
-   - Request count
-   - Request latency
-   - Error rate
-   - Container instances
+```bash
+gcloud scheduler jobs list --location=us-east4
+```
 
-### Set Up Alerts
+### Monitor Database
 
-1. Go to **Monitoring** in Cloud Console
-2. Create alert policy:
-   - Metric: Cloud Run Request Count
-   - Condition: Error rate > 5%
-   - Notification: Email
+```sql
+SELECT 
+    DATE(timestamp) as date,
+    platform,
+    COUNT(*) as posts
+FROM social_media_posts
+WHERE timestamp > NOW() - INTERVAL '7 days'
+GROUP BY DATE(timestamp), platform
+ORDER BY date DESC, posts DESC;
+```
+
+## Troubleshooting
+
+### Collectors Return 0 Posts
+
+Check logs for errors:
+```bash
+gcloud functions logs read bluesky-collector --region=us-east4 --limit=30
+```
+
+Common issues:
+- Database connection failed
+- API rate limits
+- Search terms not matching
+
+### Dashboard Shows No Data
+
+1. Verify data exists:
+```bash
+gcloud sql connect va11-db --user=postgres --database=va11_intelligence
+SELECT COUNT(*) FROM social_media_posts;
+```
+
+2. Check dashboard logs:
+```bash
+gcloud run services logs read va11-dashboard --region=us-east4 --limit=50
+```
+
+3. Test API endpoints:
+```bash
+curl https://va11-dashboard-466254020344.us-east4.run.app/api/stats
+```
+
+### Sentiment Analysis Not Running
+
+Check if posts are marked as processed:
+```sql
+SELECT processed, COUNT(*) 
+FROM social_media_posts 
+GROUP BY processed;
+```
+
+Manually trigger analyzer:
+```bash
+curl https://us-east4-va11-intelligence.cloudfunctions.net/sentiment-analyzer
+```
 
 ## Maintenance
 
-### Update Dependencies
+### Update Collectors
 
+1. Modify code in `collectors/` directory
+2. Redeploy:
 ```bash
-# Update requirements.txt with new versions
-pip install --upgrade Flask gunicorn psycopg2-binary google-cloud-secret-manager
+cd collectors/bluesky
+gcloud functions deploy bluesky-collector --source . --region=us-east4
+```
 
-# Regenerate requirements.txt
-pip freeze > requirements.txt
+### Update Dashboard
 
-# Commit and redeploy
-git add requirements.txt
-git commit -m "Updated dependencies"
-git push
-
-# Redeploy
-gcloud run deploy va11-dashboard --source . --region us-east4
+1. Modify code in `dashboard/` directory
+2. Redeploy:
+```bash
+cd dashboard
+gcloud run deploy va11-dashboard --source . --region=us-east4
 ```
 
 ### Database Maintenance
 
-```bash
-# Connect to database
-gcloud sql connect va11-db --user=postgres --database=va11_intelligence
-
-# Check table sizes
-SELECT 
-    schemaname,
-    tablename,
-    pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) AS size
-FROM pg_tables
-WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
-ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC;
-
-# Archive old posts (older than 90 days)
-DELETE FROM social_media_posts WHERE created_at < NOW() - INTERVAL '90 days';
-
-# Vacuum database
+Archive old data (optional):
+```sql
+DELETE FROM social_media_posts WHERE timestamp < NOW() - INTERVAL '90 days';
 VACUUM ANALYZE;
 ```
 
-## Security Best Practices
+## Cost Management
 
-1. **Never commit secrets** - Use Secret Manager
-2. **Keep dependencies updated** - Run security audits
-3. **Monitor logs** - Check for suspicious activity
-4. **Use IAM roles** - Least privilege principle
-5. **Enable audit logging** - Track all changes
+### Current Costs (~$10-15/month)
 
-## Cost Optimization
+- Cloud SQL: $7-10 (db-f1-micro)
+- Cloud Run: $5 (includes free tier)
+- Cloud Functions: FREE (under 2M invocations)
+- Cloud Scheduler: FREE (under 3 jobs)
+- Anthropic API: $2-5 (based on volume)
 
-Current costs (~$10-15/month):
+### Reduce Costs
 
-To reduce costs:
-1. Use Cloud SQL Backup scheduling (not continuous)
-2. Reduce collector frequency (from 6 hours to 12 hours)
-3. Implement data retention policy (delete posts > 90 days)
-4. Use Cloud Run minimum instances = 0
+1. Decrease collector frequency:
+```bash
+gcloud scheduler jobs update http bluesky-collector-schedule \
+    --schedule="0 */12 * * *"
+```
 
-## Next Steps
+2. Implement data retention:
+```sql
+DELETE FROM social_media_posts WHERE timestamp < NOW() - INTERVAL '60 days';
+```
 
-1. ✅ Deploy dashboard
-2. ⏳ Add authentication (optional)
-3. ⏳ Implement additional tabs (Policy Issues, Geographic)
-4. ⏳ Add export functionality (CSV/PDF reports)
-5. ⏳ Create weekly email digest
-6. ⏳ Add real-time notifications for negative sentiment spikes
+3. Use smaller Cloud SQL instance:
+```bash
+gcloud sql instances patch va11-db --tier=db-f1-micro
+```
 
----
+## Security
 
-**Need help?** Open an issue on GitHub or contact Dr. Shallon Elizabeth Brown at contact@ctoadvisorpro.com
+### Access Control
+
+Dashboard is public (no sensitive data). To add authentication:
+
+```bash
+gcloud run services update va11-dashboard \
+    --region=us-east4 \
+    --no-allow-unauthenticated
+```
+
+### Secret Rotation
+
+Rotate database password:
+```bash
+echo -n "NEW_PASSWORD" | gcloud secrets versions add db-password --data-file=-
+
+gcloud functions deploy bluesky-collector \
+    --update-secrets=DB_PASSWORD=db-password:latest
+```
+
+### Audit Logging
+
+Enable audit logs:
+```bash
+gcloud logging read "resource.type=cloud_function" --limit=100
+```
+
+## Scaling
+
+### Increase Data Collection
+
+Add more search terms in `collectors/bluesky/main.py`:
+```python
+search_terms = [
+    "Reston Virginia",
+    "Fairfax County",
+    "ADD MORE TERMS HERE"
+]
+```
+
+### Add Data Sources
+
+1. Create new collector in `collectors/`
+2. Deploy as Cloud Function
+3. Add to Cloud Scheduler
+4. Update dashboard queries
+
+### Handle High Traffic
+
+Increase Cloud Run instances:
+```bash
+gcloud run services update va11-dashboard \
+    --region=us-east4 \
+    --max-instances=10 \
+    --min-instances=1
+```
+
+## Support
+
+- GitHub: https://github.com/sbrow126/va11-intelligence-platform
+- Issues: https://github.com/sbrow126/va11-intelligence-platform/issues
+- Contact: Dr. Shallon Elizabeth Brown
+- Email: contact@ctoadvisorpro.com

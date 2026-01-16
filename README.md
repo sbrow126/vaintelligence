@@ -1,204 +1,164 @@
-# VA-11 Intelligence Platform
+# VA-11 Intelligence Platform - Complete Repository
 
 Real-time constituent intelligence dashboard for Representative James Walkinshaw (VA-11)
 
-## 🎯 What This Is
+## What This Is
 
-A social media monitoring and sentiment analysis platform that:
-- Collects posts from Bluesky, Mastodon, YouTube, Reddit
+A complete social media monitoring and sentiment analysis platform that:
+- Collects posts from Bluesky and Reddit
 - Analyzes sentiment using Claude Sonnet AI
 - Provides real-time dashboard showing constituent opinions
 - Tracks policy issues and geographic trends
 - Runs automated data collection every 6 hours
 
-## 🏗️ Architecture
-
-- **Frontend**: Modern HTML5 dashboard with Chart.js
-- **Backend**: Python Flask API
-- **Database**: Google Cloud SQL (PostgreSQL)
-- **Data Collection**: Google Cloud Functions (Python)
-- **Hosting**: Google Cloud Run
-- **Automation**: Google Cloud Scheduler
-
-## 📦 What's Included
+## Repository Structure
 
 ```
 va11-intelligence-platform/
-├── app.py                  # Flask API server
-├── requirements.txt        # Python dependencies
-├── Procfile               # Cloud Run startup config
-├── templates/
-│   └── dashboard.html     # Dashboard UI
-├── DEPLOYMENT.md          # Detailed deployment guide
-├── README.md              # This file
-└── .gitignore            # Git ignore rules
+├── README.md                           # This file
+├── DEPLOYMENT.md                       # Complete deployment guide
+├── QUICKSTART.md                       # Fast setup guide
+│
+├── dashboard/                          # Frontend dashboard
+│   ├── app.py                         # Flask API server
+│   ├── requirements.txt               # Python dependencies
+│   ├── Procfile                       # Cloud Run config
+│   └── templates/
+│       └── dashboard.html             # Dashboard UI
+│
+├── collectors/                         # Data collectors
+│   ├── bluesky/
+│   │   ├── main.py                    # Bluesky collector
+│   │   └── requirements.txt
+│   └── reddit/
+│       ├── main.py                    # Reddit collector
+│       └── requirements.txt
+│
+├── processors/                         # Data processors
+│   └── sentiment/
+│       ├── main.py                    # Sentiment analyzer
+│       └── requirements.txt
+│
+└── deployment/                         # Deployment scripts
+    ├── deploy_all.sh                  # Deploy everything
+    ├── deploy_collectors.sh           # Deploy collectors only
+    └── test_system.sh                 # Test all components
 ```
 
-## 🚀 Quick Deployment
+## Quick Start
 
-### Step 1: Push to GitHub
+### Prerequisites
+- Google Cloud account with billing enabled
+- GitHub account (username: sbrow126)
+- Anthropic API key (for sentiment analysis)
 
+### Deploy in 3 Steps
+
+1. **Upload to GitHub:**
 ```bash
-# Initialize git repository
-git init
+git clone https://github.com/sbrow126/va11-intelligence-platform.git
+cd va11-intelligence-platform
 git add .
-git commit -m "Initial commit: VA-11 Intelligence Platform"
-
-# Add your GitHub repository as remote
-git remote add origin https://github.com/YOUR_USERNAME/va11-intelligence-platform.git
-git branch -M main
-git push -u origin main
+git commit -m "Complete platform deployment"
+git push
 ```
 
-### Step 2: Deploy to Google Cloud Run
-
+2. **Deploy to Google Cloud:**
 ```bash
-# Make sure you're logged in to Google Cloud
-gcloud auth login
-gcloud config set project va11-intelligence
-
-# Deploy the dashboard
-cd ~/va11-intelligence-platform
-
-gcloud run deploy va11-dashboard \
-    --source . \
-    --platform managed \
-    --region us-east4 \
-    --allow-unauthenticated \
-    --set-env-vars=DB_NAME=va11_intelligence,DB_USER=postgres,CLOUD_SQL_CONNECTION_NAME=va11-intelligence:us-east4:va11-db \
-    --set-secrets=DB_PASSWORD=db-password:latest \
-    --add-cloudsql-instances=va11-intelligence:us-east4:va11-db \
-    --project=va11-intelligence
+cd deployment
+chmod +x deploy_all.sh
+./deploy_all.sh
 ```
 
-### Step 3: Access Your Dashboard
+3. **Access Dashboard:**
+```
+https://va11-dashboard-466254020344.us-east4.run.app
+```
 
-Your dashboard will be available at:
-**https://va11-dashboard-466254020344.us-east4.run.app**
+## Current Status
 
-## 🔧 Configuration
+### Working ✅
+- Dashboard UI (modern, responsive)
+- Bluesky collector (fixed video embed issues)
+- Reddit collector (no API key needed)
+- Sentiment analyzer
+- PostgreSQL database
+- Cloud Run hosting
+
+### To Do ⏳
+- YouTube collector (needs API key)
+- Mastodon collector (needs better search)
+- 7-day backfill mode
+- Policy issue categorization
+- Geographic mapping
+
+## System Architecture
+
+```
+Google Cloud Platform
+├── Cloud Functions (Data Collection)
+│   ├── bluesky-collector (every 6 hours)
+│   ├── reddit-collector (every 6 hours)
+│   └── sentiment-analyzer (every hour)
+│
+├── Cloud SQL (Database)
+│   └── PostgreSQL 15
+│       └── va11_intelligence database
+│
+├── Cloud Run (Dashboard)
+│   └── Flask + Chart.js frontend
+│
+└── Cloud Scheduler (Automation)
+    └── Triggers collectors automatically
+```
+
+## Configuration
 
 ### Environment Variables
+- `DB_NAME`: va11_intelligence
+- `DB_USER`: postgres
+- `CLOUD_SQL_CONNECTION_NAME`: va11-intelligence:us-east4:va11-db
+- `GCP_PROJECT`: va11-intelligence
 
-Set these in Google Cloud Run:
+### Secrets (in Secret Manager)
+- `db-password`: SecureVA11Pass2024!
+- `anthropic-api-key`: Your Anthropic API key
 
-- `DB_NAME`: Database name (default: `va11_intelligence`)
-- `DB_USER`: Database user (default: `postgres`)
-- `CLOUD_SQL_CONNECTION_NAME`: Cloud SQL connection string
-- `GCP_PROJECT`: Google Cloud project ID
+## Troubleshooting
 
-### Secrets
-
-Store these in Google Cloud Secret Manager:
-
-- `db-password`: PostgreSQL database password
-- `anthropic-api-key`: Anthropic API key for sentiment analysis
-- `reddit-client-id`: Reddit API client ID
-- `reddit-client-secret`: Reddit API client secret
-
-## 📊 API Endpoints
-
-The backend provides these REST APIs:
-
-- `GET /` - Dashboard homepage
-- `GET /api/stats` - Overall statistics (total posts, sentiment counts)
-- `GET /api/timeseries?days=30` - Sentiment over time
-- `GET /api/platforms` - Platform breakdown
-- `GET /api/issues` - Policy issues analysis
-- `GET /health` - Health check endpoint
-
-## 🔄 Data Collection
-
-Data is collected automatically every 6 hours via Google Cloud Functions:
-
-- **Bluesky**: `@repwalkinshaw.bsky.social`
-- **Mastodon**: Relevant VA-11 hashtags and accounts
-- **YouTube**: Comments on official videos and local news
-- **Reddit**: r/nova, r/fairfaxcounty, r/reston
-
-Each collector:
-1. Fetches new posts/comments
-2. Stores raw content in Cloud SQL
-3. Analyzes sentiment using Claude Sonnet
-4. Categorizes policy issues
-5. Updates dashboard data
-
-## 🛠️ Local Development
-
+### Dashboard shows no data
 ```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Set environment variables
-export DB_HOST=localhost
-export DB_NAME=va11_intelligence
-export DB_USER=postgres
-export DB_PASSWORD=your_password
-
-# Run Flask app
-python app.py
-
-# Access at http://localhost:8080
+gcloud sql connect va11-db --user=postgres --database=va11_intelligence
+SELECT platform, COUNT(*) FROM social_media_posts GROUP BY platform;
 ```
 
-## 📈 Dashboard Features
+### Collectors not running
+```bash
+gcloud scheduler jobs list --location=us-east4
+gcloud functions logs read bluesky-collector --region=us-east4 --limit=20
+```
 
-### Overview Tab
-- Total posts collected
-- Sentiment breakdown (positive/negative/neutral)
-- 30-day sentiment timeline chart
-- Platform distribution chart
+### Deploy failed
+Check logs:
+```bash
+gcloud run services logs read va11-dashboard --region=us-east4 --limit=50
+```
 
-### Policy Issues Tab (Coming Soon)
-- Issue categorization
-- Sentiment by issue
-- Trending topics
+## Cost Estimate
 
-### Geographic Tab (Coming Soon)
-- Map view of constituent sentiment
-- Zip code breakdown
-- District boundaries
+Monthly: $10-15
+- Cloud Run: $5
+- Cloud SQL: $7-10
+- Cloud Functions: FREE
+- Cloud Scheduler: FREE
+- Anthropic API: $2-5
 
-### Live Posts Tab (Coming Soon)
-- Real-time feed of new posts
-- Filtering by platform and sentiment
-- Direct links to source content
+## Support
 
-### Analytics Tab (Coming Soon)
-- Advanced metrics
-- Engagement analysis
-- Weekly/monthly reports
-
-## 🔐 Security
-
-- Dashboard is publicly accessible (no sensitive data displayed)
-- API keys stored in Google Cloud Secret Manager
-- Database credentials never exposed in code
-- All connections use SSL/TLS
-- Rate limiting on API endpoints
-
-## 💰 Cost Estimate
-
-Monthly running costs (~$10-15):
-
-- Google Cloud Run: $5 (includes 2M requests free)
-- Cloud SQL: $7-10 (db-f1-micro instance)
-- Cloud Functions: FREE (2M invocations free)
-- Cloud Scheduler: FREE (3 jobs free)
-- Secret Manager: FREE (6 secrets free)
-- Anthropic API: $2-5 (based on volume)
-
-## 📞 Support
-
-For issues or questions:
-- Open an issue on GitHub
+- GitHub: https://github.com/sbrow126/va11-intelligence-platform
 - Contact: Dr. Shallon Elizabeth Brown
 - Email: contact@ctoadvisorpro.com
 
-## 📝 License
+## License
 
 Proprietary - Copyright © 2026 CTO Advisor Pro
-
----
-
-**Built with ❤️ for Representative James Walkinshaw and the constituents of Virginia's 11th District**

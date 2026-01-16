@@ -41,3 +41,12 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Secrets
+secrets/
+*.key
+*.pem
+credentials.json
+
+# Google Cloud
+.gcloudignore
